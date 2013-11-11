@@ -47,10 +47,10 @@ class Game {
 
     private function addRoom($id, $name, $desc, $n, $e, $s, $w) {
         $this->rooms[$id] = new Room($id, $name, $desc,
-            array(Constants::DIR_NORTH => $n,
-                  Constants::DIR_EAST => $e,
-                  Constants::DIR_SOUTH => $s,
-                  Constants::DIR_WEST => $w));
+            array(DIR_NORTH => $n,
+                  DIR_EAST => $e,
+                  DIR_SOUTH => $s,
+                  DIR_WEST => $w));
     }
     // the rooms must be created to call this function
     private function addItemToRoom($room_id, $item_id, $name, $weight) {
@@ -63,46 +63,46 @@ class Game {
 
     // Game Actions
     public function start() {
-        while ($cmd = readline(Constants::PROMPT)) {
+        while ($cmd = readline(PROMPT)) {
             $this->command($cmd);
         }
     }
     private function command($cmd) {
         // throw in an extra line break for good measure
-        echo "\n";
+        self::_ann("");
 
         $args = explode(" ", $cmd);
         $action = array_shift($args);
 
         switch ($action) {
-            case Constants::ACTION_QUIT:
+            case ACTION_QUIT:
                 $this->quit(); break;
-            case Constants::ACTION_MOVE:
-            case Constants::ACTION_GO:
+            case ACTION_MOVE:
+            case ACTION_GO:
                 $this->move($args[0]); break;
-            case Constants::ACTION_LOOK:
+            case ACTION_LOOK:
                 $this->look(); break;
-            case Constants::ACTION_TAKE:
+            case ACTION_TAKE:
                 $this->take(implode(" ", $args)); break;
-            case Constants::ACTION_DROP:
+            case ACTION_DROP:
                 $this->drop(implode(" ", $args)); break;
-            case Constants::ACTION_INVENTORY:
+            case ACTION_INVENTORY:
                 $this->inventory(); break;
             default:
-                echo "I don't know that command!\n";
+                self::_ann(ANN_ERROR_UNKNOWN_ACTION);
         }
     }
     private function move($direction) {
         // check that it's a valid direction of travel
         if (!in_array($direction, Constants::$directions)) {
-            echo "That direction doesn't make sense to me...\n";
+            self::_ann(ANN_ERROR_WRONG_DIR);
             return;
         }
 
         // make sure we can move in that direction given the current room
         $next_room_id = $this->cur_room->getRoomIDForDirection($direction);
         if ($next_room_id === null) {
-            echo "You can't move that way!\n";
+            self::_ann(ANN_ERROR_DIR_BLOCKED);
             return;
         }
 
@@ -124,7 +124,7 @@ class Game {
         if ($item_name == 'all') {
             // make sure we wont be overweight
             if ($this->wouldBeOverweight($this->getWeightOfItems($this->cur_room->items))) {
-                echo "You can't hold that many items\n";
+                self::_ann(ANN_ERROR_OVERWEIGHT);
                 return;
             }
 
@@ -132,7 +132,7 @@ class Game {
             foreach ($this->cur_room->items as $item) {
                 $this->inventory[$item->id] = $this->cur_room->takeItemFromRoom($item->id);
             }
-            echo "Taken!\n";
+            self::_ann(ANN_TAKE_SUCCESS);
             return;
         }
 
@@ -140,49 +140,56 @@ class Game {
         if (($item = $this->cur_room->hasItemFromName($item_name)) !== null) {
             // check to make sure we wont be overweight
             if ($this->wouldBeOverweight($item->weight)) {
-                echo "You can't hold that many items\n";
+                self::_ann(ANN_ERROR_OVERWEIGHT);
                 return;
             }
 
             $this->cur_room->takeItemFromRoom($item->id);
             $this->inventory[$item->id] = $item;
-            echo "Taken!\n";
+            self::_ann(ANN_TAKE_SUCCESS);
             return;
         }
 
-        echo "That item isn't in the room.\n";
+        self::_ann(ANN_ERROR_TAKE_WRONG_ITEM);
     }
     private function drop($item_name) {
         foreach ($this->inventory as $item) {
             if (strtolower($item->name) == $item_name) {
                 $this->cur_room->dropItemInRoom($item);
                 unset($this->inventory[$item->id]);
-                echo "Dropped!\n";
+                self::_ann(ANN_DROP_SUCCESS);
                 return;
             }
         }
-        echo "You don't have that item\n";
+        self::_ann(ANN_ERROR_DROP_WRONG_ITEM);
     }
     private function inventory() {
-        echo "You have: ";
         if (!empty($this->inventory)) {
-            echo $this->getInventoryString($this->inventory) . "\n";
+            self::_ann(ANN_INVENTORY_PREFACE, false);
+            self::_ann($this->getInventoryString($this->inventory));
         } else {
-            echo "nothing\n";
+            self::_ann(ANN_INVENTORY_EMPTY);
         }
     }
 
     // Game Announcements
+    // _ann is effectively println. All echos to the command line should go through here
+    private static function _ann($line, $newline=true) {
+        echo $line;
+        if ($newline) {
+            echo "\n";
+        }
+    }
     private function doAnnounceStartGame() {
-        echo "Welcome to THE GAME\n" .
-             "(c) 2013 cfperrone\n\n";
+        self::_ann(ANN_START_GAME);
+        self::_ann("");
     }
     private function doAnnounceRoom($room) {
-        echo $room->name . "\n";
-        echo $room->description . "\n";
+        self::_ann($room->name);
+        self::_ann($room->description);
         if (!empty($room->items)) {
-            echo "The following items are here: ";
-            echo $this->getInventoryString($room->items) . "\n";
+            self::_ann(ANN_ROOM_INVENTORY_PREFACE, false);
+            self::_ann($this->getInventoryString($room->items));
         }
     }
     private function doAnnounceDirection($room) {
@@ -194,12 +201,12 @@ class Game {
         }
         
         if (empty($dirs)) {
-            echo "It looks like there are no exits... You cannot excape!\n";
+            self::_ann(ERROR_NO_ESCAPE);
             return;
         }
 
-        echo "There are exits to the ";
-        echo implode(", ", $dirs) . "\n";
+        self::_ann(ANN_ROOM_EXIT_PREFACE, false);
+        self::_ann(implode(", ", $dirs));
     }
 
     // helpers
@@ -223,7 +230,7 @@ class Game {
     }
     private function wouldBeOverweight($weight) {
         $inventory_weight = $this->getWeightOfItems($this->inventory);
-        if (($inventory_weight + $weight) > Constants::INVENTORY_LIMIT) {
+        if (($inventory_weight + $weight) > INVENTORY_LIMIT) {
             return true;
         }
         return false;
