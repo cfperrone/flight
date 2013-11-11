@@ -153,6 +153,15 @@ class Game {
         self::_ann(ANN_ERROR_TAKE_WRONG_ITEM);
     }
     private function drop($item_name) {
+        if ($item_name == 'all') {
+            foreach ($this->inventory as $item) {
+                $this->cur_room->dropItemInRoom($item);
+                unset($this->inventory[$item->id]);
+            }
+            self::_ann(ANN_DROP_SUCCESS);
+            return;
+        }
+
         foreach ($this->inventory as $item) {
             if (strtolower($item->name) == $item_name) {
                 $this->cur_room->dropItemInRoom($item);
